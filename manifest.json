@@ -1,0 +1,19 @@
+{
+  "name": "Gezonde Maaltijd",
+  "short_name": "GezondeMaaltijd",
+  "description": "Analyseer je maaltijdingredïenten op voedingswaarden",
+  "start_url": "/Gezondemaaltijd/",
+  "scope": "/Gezondemaaltijd/",
+  "display": "standalone",
+  "background_color": "#F0FFF4",
+  "theme_color": "#2D6A4F",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232D6A4F'/><text y='.9em' font-size='80' x='10'>🥗</text></svg>",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

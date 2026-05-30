@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#2D6A4F">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Gezonde Maaltijd">
+  <meta name="description" content="Analyseer ingrediënten op eiwit, vezels, gezonde vetten en groenten">
+  <title>Gezonde Maaltijd</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Header ─────────────────────────────────────────────────────── -->
+  <header class="app-header">
+    <div class="header-content">
+      <span class="app-logo">🥗</span>
+      <h1 class="app-title" data-i18n="appTitle">Gezonde Maaltijd</h1>
+      <button class="lang-toggle" id="langToggle" aria-label="Wissel taal">
+        <span id="langLabel">EN</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- ── Screens ────────────────────────────────────────────────────── -->
+  <main class="screens">
+
+    <!-- ANALYSEER ─────────────────────────────────────────────────── -->
+    <section class="screen active" id="screen-analyze">
+      <div class="screen-inner">
+
+        <div class="input-card">
+          <label class="input-label" for="ingredientInput" data-i18n="inputLabel">
+            Welke ingrediënten gebruik je?
+          </label>
+          <textarea
+            id="ingredientInput"
+            class="ingredient-input"
+            placeholder="Bijv: 250g kipfilet, broccoli, een handje walnoten, olijfolie..."
+            data-i18n-placeholder="inputPlaceholder"
+            rows="4"
+            autocomplete="off"
+            autocorrect="off"
+            autocapitalize="sentences"
+            spellcheck="false"
+          ></textarea>
+          <button class="btn-analyze" id="analyzeBtn">
+            <span data-i18n="analyzeBtn">Analyseer maaltijd</span>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
+              <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+          </button>
+        </div>
+
+        <div class="results-container" id="resultsContainer" hidden>
+
+          <!-- Maaltijdcontext badge -->
+          <div class="meal-context-badge" id="mealContextBadge" hidden>
+            <span id="mealContextText"></span>
+          </div>
+
+          <!-- Nutriëntenstatus 2×2 grid -->
+          <div class="nutrient-grid" id="nutrientGrid"></div>
+
+          <!-- Voedingswaarden samenvatting -->
+          <div class="nutrition-summary" id="nutritionSummary" hidden>
+            <h3 class="summary-title" data-i18n="summaryTitle">Voedingswaarden (geschat)</h3>
+            <div class="summary-grid" id="summaryGrid"></div>
+          </div>
+
+          <!-- Suggesties -->
+          <div class="suggestions-section" id="suggestionsSection" hidden>
+            <h3 class="suggestions-title" data-i18n="suggestionsTitle">Voeg toe voor een completere maaltijd</h3>
+            <div class="suggestions-list" id="suggestionsList"></div>
+          </div>
+
+          <!-- AI analyse (zichtbaar als API-sleutel ingesteld) -->
+          <div class="ai-section" id="aiSection" hidden>
+            <div class="ai-title" data-i18n="aiAnalysisTitle">Claude AI-analyse</div>
+            <p id="aiText"></p>
+          </div>
+
+          <!-- Herkende ingrediënten -->
+          <div class="detected-section">
+            <h3 class="detected-title" data-i18n="detectedTitle">Herkende ingrediënten</h3>
+            <div class="detected-chips" id="detectedChips"></div>
+            <p class="unrecognized-note" id="unrecognizedNote" hidden></p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- DATABASE ───────────────────────────────────────────────────── -->
+    <section class="screen" id="screen-database">
+      <div class="screen-inner">
+
+        <div class="db-search-bar">
+          <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input
+            type="search"
+            id="dbSearch"
+            class="db-search-input"
+            placeholder="Zoek ingrediënt..."
+            data-i18n-placeholder="searchPlaceholder"
+            autocomplete="off"
+            inputmode="search"
+          >
+        </div>
+
+        <div class="category-tabs" id="categoryTabs" role="tablist">
+          <button class="tab active" role="tab" data-cat="protein" data-i18n="tabProtein">💪 Eiwit</button>
+          <button class="tab"        role="tab" data-cat="fiber"   data-i18n="tabFiber">🌾 Vezels</button>
+          <button class="tab"        role="tab" data-cat="fat"     data-i18n="tabFat">🥑 Vetten</button>
+          <button class="tab"        role="tab" data-cat="veg"     data-i18n="tabVeg">🥦 Groenten</button>
+        </div>
+
+        <div class="db-list" id="dbList"></div>
+
+      </div>
+    </section>
+
+    <!-- INSTELLINGEN ───────────────────────────────────────────────── -->
+    <section class="screen" id="screen-settings">
+      <div class="screen-inner">
+
+        <h2 class="settings-title" data-i18n="settingsTitle">Instellingen</h2>
+
+        <!-- Taal -->
+        <div class="settings-group">
+          <h3 class="settings-group-title" data-i18n="languageTitle">Taal</h3>
+          <div class="toggle-row">
+            <span data-i18n="langNl">Nederlands</span>
+            <label class="toggle-switch" aria-label="Taalswitch">
+              <input type="checkbox" id="langSwitch">
+              <span class="toggle-slider"></span>
+            </label>
+            <span data-i18n="langEn">English</span>
+          </div>
+        </div>
+
+        <!-- Dieetprofiel -->
+        <div class="settings-group">
+          <h3 class="settings-group-title" data-i18n="dietTitle">Dieetprofiel</h3>
+          <p class="settings-hint" data-i18n="dietHint">Aangevinkte opties worden uitgesloten van suggesties</p>
+          <div class="diet-options">
+            <label class="diet-option">
+              <input type="checkbox" data-flag="dairy">
+              <span class="diet-check"></span>
+              <div class="diet-info">
+                <span class="diet-name" data-i18n="dietDairyFree">Melkvrij</span>
+                <span class="diet-desc" data-i18n="dietDairyFreeDesc">Geen zuivel, ook geen caseïne</span>
+              </div>
+            </label>
+            <label class="diet-option">
+              <input type="checkbox" data-flag="fish">
+              <span class="diet-check"></span>
+              <div class="diet-info">
+                <span class="diet-name" data-i18n="dietFishFree">Visvrij</span>
+                <span class="diet-desc" data-i18n="dietFishFreeDesc">Geen vis of schaaldieren</span>
+              </div>
+            </label>
+            <label class="diet-option">
+              <input type="checkbox" data-flag="pork">
+              <span class="diet-check"></span>
+              <div class="diet-info">
+                <span class="diet-name" data-i18n="dietPorkFree">Varkensvrij</span>
+                <span class="diet-desc" data-i18n="dietPorkFreeDesc">Geen varkensvlees</span>
+              </div>
+            </label>
+            <label class="diet-option">
+              <input type="checkbox" data-flag="gluten">
+              <span class="diet-check"></span>
+              <div class="diet-info">
+                <span class="diet-name" data-i18n="dietGlutenFree">Glutenvrij</span>
+                <span class="diet-desc" data-i18n="dietGlutenFreeDesc">Geen gluten</span>
+              </div>
+            </label>
+            <label class="diet-option">
+              <input type="checkbox" data-flag="vegetarian">
+              <span class="diet-check"></span>
+              <div class="diet-info">
+                <span class="diet-name" data-i18n="dietVegetarian">Vegetarisch</span>
+                <span class="diet-desc" data-i18n="dietVegetarianDesc">Geen vlees of vis</span>
+              </div>
+            </label>
+            <label class="diet-option">
+              <input type="checkbox" data-flag="vegan">
+              <span class="diet-check"></span>
+              <div class="diet-info">
+                <span class="diet-name" data-i18n="dietVegan">Veganistisch</span>
+                <span class="diet-desc" data-i18n="dietVeganDesc">Alleen plantaardige producten</span>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Claude AI -->
+        <div class="settings-group">
+          <h3 class="settings-group-title" data-i18n="aiTitle">Claude AI (optioneel)</h3>
+          <p class="settings-hint" data-i18n="aiHint">Voeg je Anthropic API-sleutel toe voor slimmere analyse</p>
+          <div class="api-key-row">
+            <input
+              type="password"
+              id="apiKeyInput"
+              class="api-key-input"
+              placeholder="sk-ant-..."
+              autocomplete="off"
+              autocorrect="off"
+              spellcheck="false"
+            >
+            <button class="btn-save-key" id="saveApiKey" data-i18n="saveKey">Opslaan</button>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <p class="api-status" id="apiStatus"></p>
+            <button class="btn-clear-key" id="clearApiKey" hidden data-i18n="clearKey">Verwijderen</button>
+          </div>
+        </div>
+
+        <!-- Over de app -->
+        <div class="settings-group settings-about">
+          <p data-i18n="aboutText">Voedingswaarden gebaseerd op USDA FoodData Central en Voedingscentrum NL.</p>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ── Bottom navigation ──────────────────────────────────────────── -->
+  <nav class="bottom-nav" aria-label="Navigatie">
+    <button class="nav-item active" data-screen="analyze" aria-label="Analyseer">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+      </svg>
+      <span data-i18n="navAnalyze">Analyseer</span>
+    </button>
+    <button class="nav-item" data-screen="database" aria-label="Database">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <ellipse cx="12" cy="5" rx="9" ry="3"/>
+        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+      </svg>
+      <span data-i18n="navDatabase">Database</span>
+    </button>
+    <button class="nav-item" data-screen="settings" aria-label="Instellingen">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+      <span data-i18n="navSettings">Instellingen</span>
+    </button>
+  </nav>
+
+</div>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
