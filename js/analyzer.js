@@ -89,19 +89,22 @@ function getDefaultPortion(ingredient) {
 function parseQuantity(token) {
   const lower = token.toLowerCase().trim();
 
-  // Check vague multi-word amounts first (longest match)
+  // Check vague amounts — use word boundaries to avoid matching inside ingredient names
+  // e.g. "kom" must not match inside "komkommer"
   const sortedVague = Object.keys(VAGUE_GRAMS).sort((a, b) => b.length - a.length);
   for (const vague of sortedVague) {
-    if (lower.includes(vague)) {
+    const vagueRe = new RegExp(`(?:^|\\s)${vague.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=\\s|$)`, 'i');
+    if (vagueRe.test(lower)) {
       const multiplierMatch = lower.match(
-        new RegExp(`(${Object.keys(MULTIPLIERS).join('|')})\\s+${vague}`)
+        new RegExp(`(${Object.keys(MULTIPLIERS).join('|')})\\s+${vague}`, 'i')
       );
-      const numMatch = lower.match(new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*${vague}`));
+      const numMatch = lower.match(new RegExp(`(\\d+(?:[.,]\\d+)?)\\s*${vague}`, 'i'));
       let grams = VAGUE_GRAMS[vague];
       if (multiplierMatch) grams *= MULTIPLIERS[multiplierMatch[1]];
       else if (numMatch) grams *= parseFloat(numMatch[1].replace(',', '.'));
-      const ingName = lower.replace(new RegExp(`.*${vague}\\s*`), '').trim();
-      return { grams: Math.round(grams), ingredientName: ingName || lower, isVague: true };
+      // Extract ingredient name: text after the amount expression
+      const afterVague = lower.replace(new RegExp(`^.*?${vague.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i'), '').trim();
+      return { grams: Math.round(grams), ingredientName: afterVague || lower, isVague: true };
     }
   }
 
@@ -172,6 +175,12 @@ function levenshtein(a, b) {
 function matchIngredient(name) {
   if (!name || name.length < 2) return null;
   const n = normalize(name);
+  if (!n) return null;
+
+  // Reject if the entire token (or all meaningful words) are stop words
+  const words = n.split(/\s+/).filter(w => w.length > 1);
+  if (!words.length) return null;
+  if (words.every(w => STOP_WORDS.has(w) || w.length <= 2)) return null;
 
   // 1. Exact Dutch name
   let hit = INGREDIENTS.find(i => normalize(i.dutchName) === n);
@@ -181,36 +190,73 @@ function matchIngredient(name) {
   hit = INGREDIENTS.find(i => normalize(i.englishName) === n);
   if (hit) return hit;
 
-  // 3. Dutch name contains token or token contains Dutch name start (≥4 chars)
+  // 3. Token is prefix of the first word of a Dutch ingredient name (≥3 chars)
+  // Handles "kip" → "Kipfilet", "ton" → "Tonijn", "bro" → "Broccoli"
+  if (n.length >= 3 && !STOP_WORDS.has(n)) {
+    hit = INGREDIENTS.find(i => {
+      const firstWord = normalize(i.dutchName).split(' ')[0];
+      return firstWord.startsWith(n) && firstWord.length > n.length;
+    });
+    if (hit) return hit;
+  }
+
+  // 3b. Dutch name contains token (token must be ≥4 chars, not a stop word)
+  if (n.length >= 4 && !STOP_WORDS.has(n)) {
+    hit = INGREDIENTS.find(i => normalize(i.dutchName).includes(n));
+    if (hit) return hit;
+  }
+
+  // 4. Token contains Dutch name (Dutch name is substring of query, ≥5 chars)
   hit = INGREDIENTS.find(i => {
     const d = normalize(i.dutchName);
-    return d.includes(n) || (n.length >= 4 && d.startsWith(n.substring(0, Math.min(n.length, d.length))));
+    return d.length >= 5 && n.includes(d);
   });
   if (hit) return hit;
 
-  // 4. Token contains Dutch name (ingredient name is substring of query)
-  hit = INGREDIENTS.find(i => {
-    const d = normalize(i.dutchName);
-    return n.includes(d) && d.length >= 4;
-  });
-  if (hit) return hit;
+  // 5. English name contains token (token ≥5 chars, not stop word)
+  if (n.length >= 5 && !STOP_WORDS.has(n)) {
+    hit = INGREDIENTS.find(i => normalize(i.englishName).includes(n));
+    if (hit) return hit;
+  }
 
-  // 5. English name contains token
-  hit = INGREDIENTS.find(i => normalize(i.englishName).includes(n) && n.length >= 4);
-  if (hit) return hit;
-
-  // 6. Fuzzy match on first word of Dutch name
-  const firstWord = n.split(' ')[0];
-  if (firstWord.length >= 4) {
+  // 6. Fuzzy match — only for long, specific single words (≥6 chars, lev ≤1)
+  const longWord = words.find(w => w.length >= 6 && !STOP_WORDS.has(w));
+  if (longWord) {
     hit = INGREDIENTS.find(i => {
       const d = normalize(i.dutchName).split(' ')[0];
-      return levenshtein(firstWord, d) <= 2;
+      return d.length >= 5 && levenshtein(longWord, d) <= 1;
     });
     if (hit) return hit;
   }
 
   return null;
 }
+
+// ── Stop words (never treat these as ingredients) ─────────────────────────
+
+const STOP_WORDS = new Set([
+  // Dutch verbs, pronouns, articles, conjunctions, adjectives
+  'ik','je','jij','we','wij','ze','zij','hij','het','de','een','er','dat','die','dit',
+  'hier','daar','zo','nu','dan','als','maar','want','omdat','dus','ook','nog','al',
+  'wel','toch','bij','op','in','uit','van','aan','voor','naar','met','tot','over',
+  'door','om','zonder','na','per','hoe','wie','wat','welk','welke',
+  'heb','ben','ga','wil','wilt','kan','kunnen','mag','moet','moeten','zou','zouden',
+  'was','waren','heeft','hebben','zijn','is','wordt','worden','doe','doet',
+  'meer','minder','veel','weinig','heel','erg','zeer','lekker','vers','fris',
+  'gevuld','klaar','goed','groot','klein','vol','compleet','gezond','lekker',
+  'maak','maken','maakt','gebruik','gebruiken','neem','nemen',
+  'salade','gerecht','maaltijd','recept','koken','eten',
+  'beetje','stukje','scheutje','gewoon','gewone','lekker',
+  // English equivalents
+  'i','you','we','they','he','she','it','my','your','our','their',
+  'a','an','the','this','that','these','those','its',
+  'want','need','have','use','make','cook','prepare','get',
+  'here','there','how','who','where','when','why','which',
+  'and','but','or','so','because','with','without','about',
+  'some','more','less','much','little','very','quite','just','really',
+  'good','fresh','healthy','tasty','filling','complete','full','great',
+  'meal','recipe','dish','cooking','food',
+]);
 
 // ── Meal context detection ─────────────────────────────────────────────────
 
@@ -246,9 +292,14 @@ export function detectMealContext(text) {
 
 function tokenizeText(text) {
   return text
-    .replace(/\bik\s+(ga|gebruik|heb|maak|doe)\b/gi, '')
-    .replace(/\b(een|stukje|stukjes|wat|wat|een beetje|ook|nog|extra|lekker|vers)\b/gi, ' ')
-    .split(/,|;|\ben\b|\bmet\b|\bplus\b|\bnog\b|\balsook\b|\band\b|\bwith\b/i)
+    // Remove "maar ik wil..." / "en ik wil..." / "ik wil..." trailing clauses
+    .replace(/\b(maar|en)?\s*ik\s+wil\b.*/gi, '')
+    // Remove "ik heb/ga/gebruik/maak/doe ..." (verb + rest of clause)
+    .replace(/\bik\s+(heb hier|heb|ga|gebruik|maak|doe)\b/gi, '')
+    // Remove filler adjective/adverb words
+    .replace(/\b(een|stukje|stukjes|ook|nog|extra|lekker|vers|beetje|gewoon|hier|heel|erg|dat|die|meer|gevuld|fris|echt|lekker)\b/gi, ' ')
+    // Split on natural delimiters
+    .split(/[,;.]|\ben\b|\bmet\b|\bplus\b|\balsook\b|\band\b|\bwith\b/i)
     .map(s => s.trim())
     .filter(s => s.length > 1);
 }
